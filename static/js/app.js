@@ -1,7 +1,5 @@
 /* ── Research Easier — Frontend Logic ─────────────────────────────────── */
 
-let currentTaskId = null;
-let pollTimer = null;
 let sentimentChart = null;
 let resultData = null;
 
@@ -37,7 +35,7 @@ document.getElementById("urlInput").addEventListener("input", (e) => {
   analyseStep.style.display = isInsta ? "flex" : "none";
 });
 
-/* ── Start processing ────────────────────────────────────────────────── */
+/* ── Start processing (SSE stream) ───────────────────────────────────── */
 
 async function startProcessing() {
   const url = document.getElementById("urlInput").value.trim();
@@ -45,7 +43,7 @@ async function startProcessing() {
 
   const btn = document.getElementById("processBtn");
   btn.disabled = true;
-  btn.querySelector(".btn-text").textContent = "Processing…";
+  btn.querySelector(".btn-text").textContent = "Processing\u2026";
   btn.querySelector(".btn-loader").classList.remove("hidden");
 
   hideEl("errorSection");
@@ -64,44 +62,75 @@ async function startProcessing() {
   };
 
   try {
-    const res = await fetch("/api/process", {
+    const response = await fetch("/api/process", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-    const data = await res.json();
-    if (data.error) throw new Error(data.error);
 
-    currentTaskId = data.task_id;
-    pollTimer = setInterval(pollStatus, 1000);
-  } catch (err) {
-    showError(err.message);
-    resetBtn();
-  }
-}
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({ error: "Request failed" }));
+      throw new Error(err.error || `HTTP ${response.status}`);
+    }
 
-/* ── Poll for status ─────────────────────────────────────────────────── */
+    // Read the SSE stream
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
 
-async function pollStatus() {
-  if (!currentTaskId) return;
-  try {
-    const res = await fetch(`/api/status/${currentTaskId}`);
-    const data = await res.json();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
 
-    updateProgress(data.progress, data.message, data.step);
+      buffer += decoder.decode(value, { stream: true });
 
-    if (data.status === "complete") {
-      clearInterval(pollTimer);
-      resultData = data.result;
-      renderResults(data.result);
-      resetBtn();
-    } else if (data.status === "error") {
-      clearInterval(pollTimer);
-      showError(data.error || "Processing failed");
+      // Parse SSE events from buffer (each event ends with \n\n)
+      const parts = buffer.split("\n\n");
+      buffer = parts.pop(); // keep incomplete chunk
+
+      for (const part of parts) {
+        const line = part.trim();
+        if (!line.startsWith("data: ")) continue;
+        const jsonStr = line.slice(6);
+
+        let event;
+        try { event = JSON.parse(jsonStr); } catch { continue; }
+
+        if (event.type === "progress") {
+          updateProgress(event.progress, event.message, event.step);
+        } else if (event.type === "result") {
+          resultData = event.result;
+          renderResults(event.result);
+          resetBtn();
+        } else if (event.type === "error") {
+          showError(event.error);
+          resetBtn();
+        }
+      }
+    }
+
+    // If we exited the loop without a result/error event, handle it
+    if (!resultData) {
+      // Check buffer for remaining data
+      if (buffer.trim()) {
+        const line = buffer.trim();
+        if (line.startsWith("data: ")) {
+          try {
+            const event = JSON.parse(line.slice(6));
+            if (event.type === "result") {
+              resultData = event.result;
+              renderResults(event.result);
+            } else if (event.type === "error") {
+              showError(event.error);
+            }
+          } catch { /* ignore */ }
+        }
+      }
       resetBtn();
     }
   } catch (err) {
-    // Network hiccup — keep polling
+    showError(err.message);
+    resetBtn();
   }
 }
 
@@ -110,7 +139,7 @@ async function pollStatus() {
 const STEP_ORDER = ["downloading", "transcribing", "fetching_comments", "analysing", "done"];
 
 function resetProgress() {
-  updateProgress(0, "Starting…", "queued");
+  updateProgress(0, "Starting\u2026", "queued");
   document.querySelectorAll(".step").forEach((s) => {
     s.classList.remove("active", "done");
   });
@@ -140,9 +169,19 @@ function renderResults(result) {
   // Video
   const video = result.video;
   if (video) {
-    document.getElementById("videoPlayer").src = video.video_url;
+    const player = document.getElementById("videoPlayer");
+    // Prefer data URL (Vercel), fall back to served file (local)
+    const src = video.video_data || video.video_url || "";
+    if (src) {
+      player.src = src;
+      player.parentElement.classList.remove("hidden");
+    } else {
+      player.parentElement.classList.add("hidden");
+    }
     document.getElementById("videoTitle").textContent = video.title || "Video";
-    document.getElementById("chipPlatform").textContent = (video.platform || "video").charAt(0).toUpperCase() + (video.platform || "").slice(1);
+    document.getElementById("chipPlatform").textContent =
+      (video.platform || result.platform || "video").charAt(0).toUpperCase() +
+      (video.platform || result.platform || "").slice(1);
     document.getElementById("chipUploader").textContent = video.uploader || "";
     if (video.duration) {
       const m = Math.floor(video.duration / 60);

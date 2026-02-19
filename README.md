@@ -13,7 +13,7 @@ Download videos from anywhere, transcribe them accurately, and get sentiment ana
 ## Prerequisites
 
 - Python 3.10+
-- [ffmpeg](https://ffmpeg.org/download.html) installed and in PATH
+- [ffmpeg](https://ffmpeg.org/download.html) installed and in PATH (not needed on Vercel — bundled via `imageio-ffmpeg`)
 
 ```bash
 # Ubuntu / Debian
@@ -26,7 +26,7 @@ brew install ffmpeg
 choco install ffmpeg
 ```
 
-## Setup
+## Local Development
 
 ```bash
 git clone https://github.com/aig-web/Research-Easier.git
@@ -37,15 +37,43 @@ source venv/bin/activate   # Linux/macOS
 # venv\Scripts\activate    # Windows
 
 pip install -r requirements.txt
-```
-
-## Run
-
-```bash
 python app.py
 ```
 
 Open **http://localhost:5000** in your browser.
+
+## Deploy to Vercel
+
+1. Install the [Vercel CLI](https://vercel.com/docs/cli):
+
+   ```bash
+   npm i -g vercel
+   ```
+
+2. Deploy:
+
+   ```bash
+   vercel
+   ```
+
+3. For production:
+
+   ```bash
+   vercel --prod
+   ```
+
+### Vercel requirements
+
+| Setting | Value | Notes |
+|---------|-------|-------|
+| Function timeout | 300 s | Requires Vercel Pro plan |
+| Function memory | 3008 MB | Configured in `vercel.json` |
+| Whisper model | `tiny` recommended | Larger models may exceed memory / timeout |
+
+The app auto-detects Vercel (`VERCEL` env var) and adapts:
+- Downloads to `/tmp` (ephemeral storage)
+- Encodes small videos as base64 data URLs for playback
+- Cleans up temp files after processing
 
 ## How It Works
 
@@ -57,6 +85,8 @@ Open **http://localhost:5000** in your browser.
    - Top positive and negative comments
    - Key phrases and common themes extracted
 5. Key talking points are extracted from the transcription itself
+
+Progress streams in real-time via Server-Sent Events (SSE).
 
 ## Settings (in the collapsible panel)
 
@@ -72,13 +102,16 @@ Open **http://localhost:5000** in your browser.
 
 ```
 Research-Easier/
-├── app.py                      # Flask web application
+├── app.py                      # Flask web application (SSE streaming)
+├── api/
+│   └── index.py                # Vercel serverless entry point
+├── vercel.json                 # Vercel build & routing config
 ├── requirements.txt            # Python dependencies
 ├── templates/
 │   └── index.html              # Frontend HTML
 ├── static/
 │   ├── css/style.css           # Styles (dark theme)
-│   └── js/app.js               # Frontend logic
+│   └── js/app.js               # Frontend logic (SSE consumer)
 ├── src/
 │   ├── downloader.py           # Video download (yt-dlp)
 │   ├── transcriber.py          # Transcription (faster-whisper)
@@ -86,17 +119,18 @@ Research-Easier/
 │   ├── sentiment.py            # VADER sentiment analysis
 │   ├── key_points.py           # Key phrase & topic extraction
 │   └── utils.py                # URL detection & helpers
-└── downloads/                  # Downloaded videos (gitignored)
+└── downloads/                  # Downloaded videos (local only, gitignored)
 ```
 
 ## Tech Stack
 
 | Component | Library |
 |-----------|---------|
-| Backend | Flask |
+| Backend | Flask (SSE streaming) |
 | Frontend | Vanilla HTML/CSS/JS + Chart.js |
 | Video download | yt-dlp |
 | Transcription | faster-whisper (CTranslate2) |
 | Instagram data | instaloader |
 | Sentiment | VADER (vaderSentiment) |
 | Keywords | RAKE (rake-nltk) |
+| Deployment | Vercel (@vercel/python) |
