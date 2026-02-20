@@ -2,7 +2,12 @@ import sqlite3
 import os
 from datetime import datetime
 
-DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "ideas.db")
+ON_VERCEL = os.environ.get("VERCEL", False)
+
+if ON_VERCEL:
+    DB_PATH = "/tmp/ideas.db"
+else:
+    DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "ideas.db")
 
 
 def get_db():

@@ -1,20 +1,23 @@
 import os
 from google import genai
-from google.genai import types
+
+DEFAULT_MODEL = "gemini-2.5-flash-preview-05-20"
 
 
-def get_client():
-    api_key = os.environ.get("GEMINI_API_KEY", "")
-    if not api_key:
+def get_client(api_key=None):
+    key = api_key or os.environ.get("GEMINI_API_KEY", "")
+    if not key:
         return None
-    return genai.Client(api_key=api_key)
+    return genai.Client(api_key=key)
 
 
-def analyze_tweet_text(tweet_text, author=""):
+def analyze_tweet_text(tweet_text, author="", api_key=None, model=None):
     """Use Gemini to summarize tweet text and extract topic."""
-    client = get_client()
+    client = get_client(api_key)
     if not client:
         return _fallback_analysis(tweet_text)
+
+    model_name = model or DEFAULT_MODEL
 
     prompt = f"""Analyze this tweet and provide:
 1. A short topic name (3-6 words max) that captures the main idea
@@ -31,7 +34,7 @@ CATEGORY: <category>"""
 
     try:
         response = client.models.generate_content(
-            model="gemini-2.0-flash",
+            model=model_name,
             contents=prompt,
         )
         return _parse_analysis(response.text)
@@ -40,9 +43,9 @@ CATEGORY: <category>"""
         return _fallback_analysis(tweet_text)
 
 
-def analyze_video(video_path):
+def analyze_video(video_path, api_key=None, model=None):
     """Use Gemini to analyze a video from a tweet."""
-    client = get_client()
+    client = get_client(api_key)
     if not client:
         return "Video analysis unavailable (no API key)"
 
@@ -52,6 +55,8 @@ def analyze_video(video_path):
     file_size = os.path.getsize(video_path)
     if file_size > 20 * 1024 * 1024:
         return "Video too large for analysis (>20MB)"
+
+    model_name = model or DEFAULT_MODEL
 
     try:
         uploaded_file = client.files.upload(file=video_path)
@@ -64,7 +69,7 @@ def analyze_video(video_path):
 Keep the response concise and informative."""
 
         response = client.models.generate_content(
-            model="gemini-2.0-flash",
+            model=model_name,
             contents=[prompt, uploaded_file],
         )
 

@@ -41,6 +41,13 @@ header {
     text-align: center;
 }
 
+.header-content {
+    position: relative;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 20px;
+}
+
 .header-content h1 {
     font-size: 28px;
     font-weight: 700;
@@ -51,6 +58,121 @@ header {
     color: var(--text-secondary);
     font-size: 14px;
     margin-top: 4px;
+}
+
+.settings-toggle {
+    position: absolute;
+    right: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    font-size: 13px;
+    padding: 6px 16px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.settings-toggle:hover {
+    border-color: var(--accent);
+    color: var(--text-primary);
+}
+
+.settings-toggle.active {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+/* === Settings Panel === */
+.settings-panel {
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+}
+
+.settings-panel.hidden {
+    display: none;
+}
+
+.settings-inner {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 20px;
+    display: flex;
+    gap: 20px;
+    align-items: flex-end;
+    flex-wrap: wrap;
+}
+
+.setting-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1;
+    min-width: 200px;
+}
+
+.setting-group label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.setting-group input,
+.setting-group select {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    font-size: 14px;
+    padding: 10px 14px;
+    border-radius: var(--radius-sm);
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.setting-group input:focus,
+.setting-group select:focus {
+    border-color: var(--accent);
+}
+
+.setting-group select {
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%239090a8' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 32px;
+}
+
+.setting-group select option {
+    background: var(--bg-card);
+    color: var(--text-primary);
+}
+
+.setting-hint {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.save-settings-btn {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: 10px 24px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+    white-space: nowrap;
+    align-self: flex-end;
+}
+
+.save-settings-btn:hover {
+    background: var(--accent-hover);
 }
 
 /* === Main === */
@@ -447,6 +569,16 @@ main {
 
     #analyze-btn {
         width: 100%;
+    }
+
+    .settings-toggle {
+        position: static;
+        transform: none;
+        margin-top: 12px;
+    }
+
+    .settings-inner {
+        flex-direction: column;
     }
 
     .week-idea-row {

@@ -24,6 +24,8 @@ def index():
 def analyze():
     data = request.get_json()
     url = data.get("url", "").strip()
+    api_key = data.get("api_key", "").strip() or None
+    model = data.get("model", "").strip() or None
 
     if not url:
         return jsonify({"error": "No URL provided"}), 400
@@ -41,12 +43,18 @@ def analyze():
     analysis = analyze_tweet_text(
         tweet_data.get("tweet_text", ""),
         tweet_data.get("author_handle", ""),
+        api_key=api_key,
+        model=model,
     )
 
     # Analyze video if present
     video_analysis = None
     if tweet_data.get("has_video") and tweet_data.get("video_path"):
-        video_analysis = analyze_video(tweet_data["video_path"])
+        video_analysis = analyze_video(
+            tweet_data["video_path"],
+            api_key=api_key,
+            model=model,
+        )
 
     # Clean up temp files
     temp_dir = tweet_data.get("temp_dir")

@@ -4,11 +4,49 @@ document.addEventListener("DOMContentLoaded", () => {
     const statusMsg = document.getElementById("status-msg");
     const loading = document.getElementById("loading");
     const ideasGrid = document.getElementById("ideas-grid");
-    const emptyState = document.getElementById("empty-state");
     const weeklyView = document.getElementById("weekly-view");
     const categoriesView = document.getElementById("categories-view");
 
-    // Tab switching
+    const settingsToggle = document.getElementById("settings-toggle");
+    const settingsPanel = document.getElementById("settings-panel");
+    const apiKeyInput = document.getElementById("api-key");
+    const modelSelect = document.getElementById("model-select");
+    const saveSettingsBtn = document.getElementById("save-settings");
+
+    // --- Settings (localStorage) ---
+    function loadSettings() {
+        const key = localStorage.getItem("gemini_api_key") || "";
+        const model = localStorage.getItem("gemini_model") || "gemini-2.5-flash-preview-05-20";
+        apiKeyInput.value = key;
+        modelSelect.value = model;
+    }
+
+    function saveSettings() {
+        localStorage.setItem("gemini_api_key", apiKeyInput.value.trim());
+        localStorage.setItem("gemini_model", modelSelect.value);
+        showStatus("Settings saved!", "success");
+        settingsPanel.classList.add("hidden");
+        settingsToggle.classList.remove("active");
+    }
+
+    function getApiKey() {
+        return localStorage.getItem("gemini_api_key") || "";
+    }
+
+    function getModel() {
+        return localStorage.getItem("gemini_model") || "";
+    }
+
+    loadSettings();
+
+    settingsToggle.addEventListener("click", () => {
+        settingsPanel.classList.toggle("hidden");
+        settingsToggle.classList.toggle("active");
+    });
+
+    saveSettingsBtn.addEventListener("click", saveSettings);
+
+    // --- Tab switching ---
     document.querySelectorAll(".tab").forEach(tab => {
         tab.addEventListener("click", () => {
             document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
@@ -22,7 +60,7 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     });
 
-    // Analyze button
+    // --- Analyze ---
     analyzeBtn.addEventListener("click", analyze);
     urlInput.addEventListener("keydown", (e) => {
         if (e.key === "Enter") analyze();
@@ -32,6 +70,14 @@ document.addEventListener("DOMContentLoaded", () => {
         const url = urlInput.value.trim();
         if (!url) return;
 
+        const apiKey = getApiKey();
+        if (!apiKey) {
+            showStatus("Please add your Gemini API key in Settings first.", "error");
+            settingsPanel.classList.remove("hidden");
+            settingsToggle.classList.add("active");
+            return;
+        }
+
         hideStatus();
         loading.classList.remove("hidden");
         analyzeBtn.disabled = true;
@@ -40,7 +86,11 @@ document.addEventListener("DOMContentLoaded", () => {
             const res = await fetch("/api/analyze", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ url }),
+                body: JSON.stringify({
+                    url,
+                    api_key: apiKey,
+                    model: getModel(),
+                }),
             });
 
             const data = await res.json();
@@ -72,7 +122,7 @@ document.addEventListener("DOMContentLoaded", () => {
         statusMsg.classList.add("hidden");
     }
 
-    // Load all ideas
+    // --- Load ideas ---
     async function loadIdeas() {
         try {
             const res = await fetch("/api/ideas");
@@ -128,7 +178,7 @@ document.addEventListener("DOMContentLoaded", () => {
         `).join("");
     }
 
-    // Weekly data
+    // --- Weekly data ---
     async function loadWeeklyData() {
         try {
             const res = await fetch("/api/ideas/weekly");
@@ -191,7 +241,7 @@ document.addEventListener("DOMContentLoaded", () => {
         `).join("");
     }
 
-    // Delete idea
+    // --- Delete ---
     window.deleteIdea = async function(id) {
         try {
             await fetch(`/api/ideas/${id}`, { method: "DELETE" });
@@ -202,13 +252,13 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     };
 
-    // Escape HTML
+    // --- Escape HTML ---
     function esc(str) {
         const div = document.createElement("div");
         div.textContent = str || "";
         return div.innerHTML;
     }
 
-    // Initial load
+    // --- Initial load ---
     loadIdeas();
 });
