@@ -22,8 +22,8 @@ downloads/
 *.webm
 *.mkv
 
-# Whisper models cache
-whisper_models/
+# Database
+ideas.db
 
 # Environment
 .env
@@ -37,9 +37,6 @@ whisper_models/
 # OS
 .DS_Store
 Thumbs.db
-
-# Vercel
-.vercel/
 
 # Logs
 *.log

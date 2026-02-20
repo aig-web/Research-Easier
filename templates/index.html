@@ -1,248 +1,61 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Research Easier</title>
-  <link rel="stylesheet" href="/static/css/style.css" />
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Twitter Idea Tracker</title>
+    <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
-
-  <!-- ── Header ─────────────────────────────────────────────────────── -->
-  <header class="header">
-    <div class="container">
-      <h1 class="logo">Research <span>Easier</span></h1>
-      <p class="tagline">Download &bull; Transcribe &bull; Analyse</p>
-    </div>
-  </header>
-
-  <!-- ── Main ───────────────────────────────────────────────────────── -->
-  <main class="container">
-
-    <!-- URL input section -->
-    <section class="input-section card">
-      <div class="url-row">
-        <input
-          id="urlInput"
-          type="url"
-          placeholder="Paste any video URL — Instagram, Twitter, YouTube, TikTok …"
-          autocomplete="off"
-        />
-        <button id="processBtn" class="btn-primary" onclick="startProcessing()">
-          <span class="btn-text">Process</span>
-          <span class="btn-loader hidden"></span>
-        </button>
-      </div>
-
-      <div id="platformBadge" class="platform-badge hidden"></div>
-
-      <!-- Collapsible settings -->
-      <details class="settings-panel">
-        <summary>Settings</summary>
-        <div class="settings-grid">
-          <div class="field">
-            <label for="modelSize">Whisper model</label>
-            <select id="modelSize">
-              <option value="tiny">tiny — fastest</option>
-              <option value="base" selected>base — balanced</option>
-              <option value="small">small — better accuracy</option>
-              <option value="medium">medium — high accuracy</option>
-              <option value="large-v3">large-v3 — best accuracy</option>
-            </select>
-          </div>
-          <div class="field">
-            <label for="language">Language code</label>
-            <input id="language" placeholder="auto (en, es, hi …)" />
-          </div>
-          <div class="field">
-            <label for="instaUser">Instagram username</label>
-            <input id="instaUser" placeholder="optional" />
-          </div>
-          <div class="field">
-            <label for="instaPass">Instagram password</label>
-            <input id="instaPass" type="password" placeholder="optional" />
-          </div>
-          <div class="field">
-            <label for="maxComments">Max comments</label>
-            <input id="maxComments" type="number" value="200" min="50" max="500" step="50" />
-          </div>
-          <div class="field">
-            <label for="cookiesFile">Cookies file path</label>
-            <input id="cookiesFile" placeholder="/path/to/cookies.txt" />
-          </div>
+    <header>
+        <div class="header-content">
+            <h1>&#x1D54F; Idea Tracker</h1>
+            <p class="subtitle">Paste a Twitter/X link &mdash; get instant analysis</p>
         </div>
-      </details>
-    </section>
+    </header>
 
-    <!-- Progress section -->
-    <section id="progressSection" class="card hidden">
-      <div class="progress-header">
-        <span id="progressMsg">Starting…</span>
-        <span id="progressPct">0%</span>
-      </div>
-      <div class="progress-track">
-        <div id="progressBar" class="progress-fill" style="width:0%"></div>
-      </div>
-      <div class="steps-row" id="stepsRow">
-        <div class="step" data-step="downloading">
-          <div class="step-dot"></div>
-          <span>Download</span>
-        </div>
-        <div class="step" data-step="transcribing">
-          <div class="step-dot"></div>
-          <span>Transcribe</span>
-        </div>
-        <div class="step" data-step="fetching_comments">
-          <div class="step-dot"></div>
-          <span>Comments</span>
-        </div>
-        <div class="step" data-step="analysing">
-          <div class="step-dot"></div>
-          <span>Analyse</span>
-        </div>
-      </div>
-    </section>
-
-    <!-- Error section -->
-    <section id="errorSection" class="card error-card hidden">
-      <p id="errorMsg"></p>
-    </section>
-
-    <!-- Results section -->
-    <section id="resultsSection" class="hidden">
-
-      <!-- Video player + meta -->
-      <div class="video-section card">
-        <div class="video-grid">
-          <div class="video-player">
-            <video id="videoPlayer" controls></video>
-          </div>
-          <div class="video-meta">
-            <h2 id="videoTitle"></h2>
-            <div class="meta-chips">
-              <span class="chip" id="chipPlatform"></span>
-              <span class="chip" id="chipDuration"></span>
-              <span class="chip" id="chipUploader"></span>
+    <main>
+        <!-- Input Section -->
+        <section class="input-section">
+            <div class="input-wrapper">
+                <input type="text" id="tweet-url" placeholder="Paste a Twitter / X link here..." autocomplete="off">
+                <button id="analyze-btn">Analyze</button>
             </div>
-          </div>
-        </div>
-      </div>
+            <div id="status-msg" class="status-msg hidden"></div>
+            <div id="loading" class="loading hidden">
+                <div class="spinner"></div>
+                <span>Extracting and analyzing tweet...</span>
+            </div>
+        </section>
 
-      <!-- Tabs -->
-      <div class="tabs-container card">
-        <div class="tabs-header" id="tabsHeader">
-          <button class="tab active" data-tab="transcription" onclick="switchTab('transcription')">
-            Transcription
-          </button>
-          <button class="tab" data-tab="sentiment" id="tabSentiment" onclick="switchTab('sentiment')">
-            Sentiment Analysis
-          </button>
-          <button class="tab" data-tab="keypoints" onclick="switchTab('keypoints')">
-            Key Points
-          </button>
-        </div>
+        <!-- Tabs -->
+        <nav class="tabs">
+            <button class="tab active" data-tab="dashboard">Dashboard</button>
+            <button class="tab" data-tab="weekly">Weekly View</button>
+            <button class="tab" data-tab="categories">Categories</button>
+        </nav>
 
-        <!-- Transcription tab -->
-        <div class="tab-pane active" id="pane-transcription">
-          <div class="transcript-controls">
-            <label class="toggle-label">
-              <input type="checkbox" id="showTimestamps" checked onchange="toggleTimestamps()" />
-              <span>Show timestamps</span>
-            </label>
-            <button class="btn-outline" onclick="downloadTranscription()">Download .txt</button>
-          </div>
-          <div class="lang-info" id="langInfo"></div>
-          <pre id="transcriptText" class="transcript-box"></pre>
-          <div id="noTranscription" class="empty-state hidden">
-            <p>Transcription was not available for this video.</p>
-          </div>
-        </div>
-
-        <!-- Sentiment tab -->
-        <div class="tab-pane" id="pane-sentiment">
-          <div id="sentimentContent">
-            <p id="sentimentSummary" class="sentiment-summary"></p>
-            <div class="sentiment-grid">
-              <div class="chart-wrap">
-                <canvas id="sentimentChart"></canvas>
-              </div>
-              <div class="sentiment-stats">
-                <div class="stat-card positive">
-                  <span class="stat-num" id="statPositive">0</span>
-                  <span class="stat-label">Positive</span>
+        <!-- Dashboard Tab -->
+        <section id="tab-dashboard" class="tab-content active">
+            <div id="ideas-grid" class="ideas-grid">
+                <div class="empty-state" id="empty-state">
+                    <div class="empty-icon">&#128269;</div>
+                    <p>No ideas tracked yet. Paste a tweet link above to get started.</p>
                 </div>
-                <div class="stat-card negative">
-                  <span class="stat-num" id="statNegative">0</span>
-                  <span class="stat-label">Negative</span>
-                </div>
-                <div class="stat-card neutral">
-                  <span class="stat-num" id="statNeutral">0</span>
-                  <span class="stat-label">Neutral</span>
-                </div>
-                <div class="stat-card total">
-                  <span class="stat-num" id="statTotal">0</span>
-                  <span class="stat-label">Total</span>
-                </div>
-              </div>
             </div>
+        </section>
 
-            <div class="comments-section">
-              <details open>
-                <summary class="comments-heading">Top Positive Comments</summary>
-                <div id="positiveComments"></div>
-              </details>
-              <details open>
-                <summary class="comments-heading">Top Negative Comments</summary>
-                <div id="negativeComments"></div>
-              </details>
-            </div>
-          </div>
-          <div id="noSentiment" class="empty-state hidden">
-            <p>Sentiment analysis is available only for Instagram Reels with accessible comments.</p>
-          </div>
-        </div>
+        <!-- Weekly Tab -->
+        <section id="tab-weekly" class="tab-content">
+            <div id="weekly-view" class="weekly-view"></div>
+        </section>
 
-        <!-- Key Points tab -->
-        <div class="tab-pane" id="pane-keypoints">
-          <div id="keypointsContent">
-            <!-- Comment key points (Instagram) -->
-            <div id="commentKeyPoints" class="hidden">
-              <h3>What People Are Saying</h3>
-              <ul id="commentSummaryPoints" class="summary-list"></ul>
+        <!-- Categories Tab -->
+        <section id="tab-categories" class="tab-content">
+            <div id="categories-view" class="categories-view"></div>
+        </section>
+    </main>
 
-              <h3>Top Phrases</h3>
-              <div id="topPhrases" class="phrase-chips"></div>
-
-              <h3>Common Themes</h3>
-              <div id="commonThemes" class="phrase-chips"></div>
-            </div>
-
-            <!-- Transcription key points -->
-            <div id="transcriptKeyPoints">
-              <h3>Key Points from Video Content</h3>
-              <ul id="transcriptSummaryPoints" class="summary-list"></ul>
-
-              <h3>Top Phrases from Video</h3>
-              <div id="transcriptPhrases" class="phrase-chips"></div>
-            </div>
-          </div>
-          <div id="noKeypoints" class="empty-state hidden">
-            <p>No key points could be extracted.</p>
-          </div>
-        </div>
-      </div>
-    </section>
-  </main>
-
-  <!-- ── Footer ─────────────────────────────────────────────────────── -->
-  <footer class="footer">
-    <div class="container">
-      Supports Instagram, Twitter/X, Threads, YouTube, TikTok, Facebook, Reddit &amp; 1000+ platforms
-      &bull; Whisper transcription &bull; VADER sentiment
-    </div>
-  </footer>
-
-  <script src="/static/js/app.js"></script>
+    <script src="/static/js/app.js"></script>
 </body>
 </html>
