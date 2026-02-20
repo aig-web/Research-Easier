@@ -1,404 +1,264 @@
-/* ── Research Easier — Frontend Logic ─────────────────────────────────── */
+document.addEventListener("DOMContentLoaded", () => {
+    const urlInput = document.getElementById("tweet-url");
+    const analyzeBtn = document.getElementById("analyze-btn");
+    const statusMsg = document.getElementById("status-msg");
+    const loading = document.getElementById("loading");
+    const ideasGrid = document.getElementById("ideas-grid");
+    const weeklyView = document.getElementById("weekly-view");
+    const categoriesView = document.getElementById("categories-view");
 
-let sentimentChart = null;
-let resultData = null;
+    const settingsToggle = document.getElementById("settings-toggle");
+    const settingsPanel = document.getElementById("settings-panel");
+    const apiKeyInput = document.getElementById("api-key");
+    const modelSelect = document.getElementById("model-select");
+    const saveSettingsBtn = document.getElementById("save-settings");
 
-/* ── URL detection ───────────────────────────────────────────────────── */
+    // --- Settings (localStorage) ---
+    function loadSettings() {
+        const key = localStorage.getItem("gemini_api_key") || "";
+        const model = localStorage.getItem("gemini_model") || "gemini-2.5-flash-preview-05-20";
+        apiKeyInput.value = key;
+        modelSelect.value = model;
+    }
 
-const PLATFORMS = {
-  instagram: /instagram\.com|instagr\.am/i,
-  twitter:   /twitter\.com|x\.com/i,
-  threads:   /threads\.net/i,
-  youtube:   /youtube\.com|youtu\.be/i,
-  tiktok:    /tiktok\.com/i,
-  facebook:  /facebook\.com|fb\.watch/i,
-  reddit:    /reddit\.com|redd\.it/i,
-};
+    function saveSettings() {
+        localStorage.setItem("gemini_api_key", apiKeyInput.value.trim());
+        localStorage.setItem("gemini_model", modelSelect.value);
+        showStatus("Settings saved!", "success");
+        settingsPanel.classList.add("hidden");
+        settingsToggle.classList.remove("active");
+    }
 
-document.getElementById("urlInput").addEventListener("input", (e) => {
-  const url = e.target.value.trim();
-  const badge = document.getElementById("platformBadge");
-  if (!url) { badge.classList.add("hidden"); return; }
+    function getApiKey() {
+        return localStorage.getItem("gemini_api_key") || "";
+    }
 
-  let detected = "Other";
-  for (const [name, re] of Object.entries(PLATFORMS)) {
-    if (re.test(url)) { detected = name.charAt(0).toUpperCase() + name.slice(1); break; }
-  }
-  badge.textContent = `Platform: ${detected}`;
-  badge.classList.remove("hidden");
+    function getModel() {
+        return localStorage.getItem("gemini_model") || "";
+    }
 
-  // Show / hide comment step
-  const commentStep = document.querySelector('.step[data-step="fetching_comments"]');
-  const analyseStep = document.querySelector('.step[data-step="analysing"]');
-  const isInsta = /instagram\.com|instagr\.am/i.test(url);
-  commentStep.style.display = isInsta ? "flex" : "none";
-  analyseStep.style.display = isInsta ? "flex" : "none";
-});
+    loadSettings();
 
-/* ── Start processing (SSE stream) ───────────────────────────────────── */
-
-async function startProcessing() {
-  const url = document.getElementById("urlInput").value.trim();
-  if (!url) return;
-
-  const btn = document.getElementById("processBtn");
-  btn.disabled = true;
-  btn.querySelector(".btn-text").textContent = "Processing\u2026";
-  btn.querySelector(".btn-loader").classList.remove("hidden");
-
-  hideEl("errorSection");
-  hideEl("resultsSection");
-  showEl("progressSection");
-  resetProgress();
-
-  const body = {
-    url,
-    model_size:     document.getElementById("modelSize").value,
-    language:       document.getElementById("language").value,
-    insta_username: document.getElementById("instaUser").value,
-    insta_password: document.getElementById("instaPass").value,
-    max_comments:   parseInt(document.getElementById("maxComments").value, 10),
-    cookies_file:   document.getElementById("cookiesFile").value,
-  };
-
-  try {
-    const response = await fetch("/api/process", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+    settingsToggle.addEventListener("click", () => {
+        settingsPanel.classList.toggle("hidden");
+        settingsToggle.classList.toggle("active");
     });
 
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({ error: "Request failed" }));
-      throw new Error(err.error || `HTTP ${response.status}`);
-    }
+    saveSettingsBtn.addEventListener("click", saveSettings);
 
-    // Read the SSE stream
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
+    // --- Tab switching ---
+    document.querySelectorAll(".tab").forEach(tab => {
+        tab.addEventListener("click", () => {
+            document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+            document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
+            tab.classList.add("active");
+            document.getElementById(`tab-${tab.dataset.tab}`).classList.add("active");
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-
-      // Parse SSE events from buffer (each event ends with \n\n)
-      const parts = buffer.split("\n\n");
-      buffer = parts.pop(); // keep incomplete chunk
-
-      for (const part of parts) {
-        const line = part.trim();
-        if (!line.startsWith("data: ")) continue;
-        const jsonStr = line.slice(6);
-
-        let event;
-        try { event = JSON.parse(jsonStr); } catch { continue; }
-
-        if (event.type === "progress") {
-          updateProgress(event.progress, event.message, event.step);
-        } else if (event.type === "result") {
-          resultData = event.result;
-          renderResults(event.result);
-          resetBtn();
-        } else if (event.type === "error") {
-          showError(event.error);
-          resetBtn();
-        }
-      }
-    }
-
-    // If we exited the loop without a result/error event, handle it
-    if (!resultData) {
-      // Check buffer for remaining data
-      if (buffer.trim()) {
-        const line = buffer.trim();
-        if (line.startsWith("data: ")) {
-          try {
-            const event = JSON.parse(line.slice(6));
-            if (event.type === "result") {
-              resultData = event.result;
-              renderResults(event.result);
-            } else if (event.type === "error") {
-              showError(event.error);
+            if (tab.dataset.tab === "weekly" || tab.dataset.tab === "categories") {
+                loadWeeklyData();
             }
-          } catch { /* ignore */ }
+        });
+    });
+
+    // --- Analyze ---
+    analyzeBtn.addEventListener("click", analyze);
+    urlInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") analyze();
+    });
+
+    async function analyze() {
+        const url = urlInput.value.trim();
+        if (!url) return;
+
+        const apiKey = getApiKey();
+        if (!apiKey) {
+            showStatus("Please add your Gemini API key in Settings first.", "error");
+            settingsPanel.classList.remove("hidden");
+            settingsToggle.classList.add("active");
+            return;
         }
-      }
-      resetBtn();
+
+        hideStatus();
+        loading.classList.remove("hidden");
+        analyzeBtn.disabled = true;
+
+        try {
+            const res = await fetch("/api/analyze", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    url,
+                    api_key: apiKey,
+                    model: getModel(),
+                }),
+            });
+
+            const data = await res.json();
+
+            if (!res.ok || data.error) {
+                showStatus(data.error || "Analysis failed", "error");
+                return;
+            }
+
+            showStatus("Tweet analyzed and added to dashboard!", "success");
+            urlInput.value = "";
+            loadIdeas();
+        } catch (err) {
+            showStatus(`Network error: ${err.message}`, "error");
+        } finally {
+            loading.classList.add("hidden");
+            analyzeBtn.disabled = false;
+        }
     }
-  } catch (err) {
-    showError(err.message);
-    resetBtn();
-  }
-}
 
-/* ── Progress UI ─────────────────────────────────────────────────────── */
-
-const STEP_ORDER = ["downloading", "transcribing", "fetching_comments", "analysing", "done"];
-
-function resetProgress() {
-  updateProgress(0, "Starting\u2026", "queued");
-  document.querySelectorAll(".step").forEach((s) => {
-    s.classList.remove("active", "done");
-  });
-}
-
-function updateProgress(pct, msg, step) {
-  document.getElementById("progressBar").style.width = pct + "%";
-  document.getElementById("progressPct").textContent = pct + "%";
-  document.getElementById("progressMsg").textContent = msg;
-
-  const stepIdx = STEP_ORDER.indexOf(step);
-  document.querySelectorAll(".step").forEach((el) => {
-    const elStep = el.dataset.step;
-    const elIdx = STEP_ORDER.indexOf(elStep);
-    el.classList.remove("active", "done");
-    if (elIdx < stepIdx) el.classList.add("done");
-    else if (elIdx === stepIdx) el.classList.add("active");
-  });
-}
-
-/* ── Render results ──────────────────────────────────────────────────── */
-
-function renderResults(result) {
-  hideEl("progressSection");
-  showEl("resultsSection");
-
-  // Video
-  const video = result.video;
-  if (video) {
-    const player = document.getElementById("videoPlayer");
-    // Prefer data URL (Vercel), fall back to served file (local)
-    const src = video.video_data || video.video_url || "";
-    if (src) {
-      player.src = src;
-      player.parentElement.classList.remove("hidden");
-    } else {
-      player.parentElement.classList.add("hidden");
+    function showStatus(msg, type) {
+        statusMsg.textContent = msg;
+        statusMsg.className = `status-msg ${type}`;
+        statusMsg.classList.remove("hidden");
+        setTimeout(() => statusMsg.classList.add("hidden"), 5000);
     }
-    document.getElementById("videoTitle").textContent = video.title || "Video";
-    document.getElementById("chipPlatform").textContent =
-      (video.platform || result.platform || "video").charAt(0).toUpperCase() +
-      (video.platform || result.platform || "").slice(1);
-    document.getElementById("chipUploader").textContent = video.uploader || "";
-    if (video.duration) {
-      const m = Math.floor(video.duration / 60);
-      const s = Math.floor(video.duration % 60);
-      document.getElementById("chipDuration").textContent = `${m}m ${s}s`;
+
+    function hideStatus() {
+        statusMsg.classList.add("hidden");
     }
-  }
 
-  // Tabs visibility
-  const hasSentiment = result.is_instagram && result.sentiment;
-  document.getElementById("tabSentiment").style.display = hasSentiment ? "block" : "none";
+    // --- Load ideas ---
+    async function loadIdeas() {
+        try {
+            const res = await fetch("/api/ideas");
+            const data = await res.json();
+            renderIdeas(data.ideas || []);
+        } catch (err) {
+            console.error("Failed to load ideas:", err);
+        }
+    }
 
-  // Transcription
-  const trans = result.transcription;
-  if (trans) {
-    document.getElementById("transcriptText").textContent = trans.formatted;
-    document.getElementById("langInfo").textContent =
-      `Language: ${trans.language} (confidence: ${(trans.language_probability * 100).toFixed(0)}%)`;
-    hideEl("noTranscription");
-  } else {
-    showEl("noTranscription");
-    document.getElementById("transcriptText").textContent = "";
-  }
+    function renderIdeas(ideas) {
+        if (!ideas.length) {
+            ideasGrid.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-icon">&#128269;</div>
+                    <p>No ideas tracked yet. Paste a tweet link above to get started.</p>
+                </div>`;
+            return;
+        }
 
-  // Sentiment
-  if (hasSentiment) {
-    renderSentiment(result.sentiment);
-    hideEl("noSentiment");
-  } else {
-    showEl("noSentiment");
-    hideEl("sentimentContent");
-  }
+        ideasGrid.innerHTML = ideas.map(idea => `
+            <div class="idea-card" data-id="${idea.id}">
+                <div class="card-header">
+                    <div class="card-topic">${esc(idea.topic_name || "Untitled")}</div>
+                    <span class="card-category">${esc(idea.category || "Other")}</span>
+                </div>
+                <div class="card-summary">${esc(idea.summary || idea.tweet_text || "")}</div>
+                ${idea.has_video && idea.video_analysis ? `
+                    <div class="card-video-analysis">
+                        <span class="label">Video Analysis</span>
+                        ${esc(idea.video_analysis)}
+                    </div>` : ""}
+                <div class="card-meta">
+                    <span class="meta-item">
+                        <span class="icon">&#128100;</span>
+                        ${esc(idea.author || idea.author_handle || "Unknown")}
+                    </span>
+                    <span class="meta-item">
+                        <span class="icon">&#128197;</span>
+                        ${esc(idea.tweet_date || "N/A")}
+                    </span>
+                    <span class="meta-item">
+                        <span class="icon">&#128065;</span>
+                        ${esc(String(idea.view_count || "N/A"))}
+                    </span>
+                    ${idea.has_video ? `<span class="meta-item"><span class="icon">&#127909;</span> Video</span>` : ""}
+                    <a class="card-link" href="${esc(idea.tweet_url)}" target="_blank" rel="noopener">${esc(idea.tweet_url)}</a>
+                    <span class="card-actions">
+                        <button class="delete-btn" onclick="deleteIdea(${idea.id})">Delete</button>
+                    </span>
+                </div>
+            </div>
+        `).join("");
+    }
 
-  // Key points
-  renderKeyPoints(result);
+    // --- Weekly data ---
+    async function loadWeeklyData() {
+        try {
+            const res = await fetch("/api/ideas/weekly");
+            const data = await res.json();
+            renderWeekly(data.weekly || {});
+            renderCategories(data.categories || []);
+        } catch (err) {
+            console.error("Failed to load weekly data:", err);
+        }
+    }
 
-  // Default tab
-  switchTab("transcription");
-}
+    function renderWeekly(weekly) {
+        const weeks = Object.keys(weekly);
+        if (!weeks.length) {
+            weeklyView.innerHTML = `<div class="empty-state"><p>No data yet.</p></div>`;
+            return;
+        }
 
-/* ── Transcription helpers ───────────────────────────────────────────── */
+        weeklyView.innerHTML = weeks.map(week => `
+            <div class="week-group">
+                <div class="week-header">
+                    <span>Week: ${esc(week)}</span>
+                    <span class="week-count">${weekly[week].length} idea${weekly[week].length !== 1 ? "s" : ""}</span>
+                </div>
+                <div class="week-ideas">
+                    <div class="week-idea-row" style="font-weight:600;color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">
+                        <div>Topic</div>
+                        <div>Category</div>
+                        <div style="text-align:center">Date</div>
+                        <div style="text-align:center">Views</div>
+                    </div>
+                    ${weekly[week].map(idea => `
+                        <div class="week-idea-row">
+                            <div>
+                                <div class="row-topic">${esc(idea.topic_name || "Untitled")}</div>
+                                <div class="row-summary">${esc(idea.summary || "")}</div>
+                            </div>
+                            <div class="row-category">${esc(idea.category || "Other")}</div>
+                            <div class="row-date">${esc(idea.tweet_date || "N/A")}</div>
+                            <div class="row-views">${esc(String(idea.view_count || "N/A"))}</div>
+                        </div>
+                    `).join("")}
+                </div>
+            </div>
+        `).join("");
+    }
 
-function toggleTimestamps() {
-  if (!resultData || !resultData.transcription) return;
-  const show = document.getElementById("showTimestamps").checked;
-  document.getElementById("transcriptText").textContent =
-    show ? resultData.transcription.formatted : resultData.transcription.formatted_plain;
-}
+    function renderCategories(categories) {
+        if (!categories.length) {
+            categoriesView.innerHTML = `<div class="empty-state"><p>No categories yet.</p></div>`;
+            return;
+        }
 
-function downloadTranscription() {
-  if (!resultData || !resultData.transcription) return;
-  const text = resultData.transcription.formatted;
-  const blob = new Blob([text], { type: "text/plain" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "transcription.txt";
-  a.click();
-  URL.revokeObjectURL(a.href);
-}
+        categoriesView.innerHTML = categories.map(cat => `
+            <div class="category-card">
+                <div class="category-name">${esc(cat.category)}</div>
+                <div class="category-count">${cat.count}</div>
+                <div class="category-label">ideas</div>
+            </div>
+        `).join("");
+    }
 
-/* ── Sentiment chart ─────────────────────────────────────────────────── */
+    // --- Delete ---
+    window.deleteIdea = async function(id) {
+        try {
+            await fetch(`/api/ideas/${id}`, { method: "DELETE" });
+            loadIdeas();
+            loadWeeklyData();
+        } catch (err) {
+            console.error("Delete failed:", err);
+        }
+    };
 
-function renderSentiment(sentiment) {
-  showEl("sentimentContent");
-  document.getElementById("sentimentSummary").textContent = sentiment.summary;
+    // --- Escape HTML ---
+    function esc(str) {
+        const div = document.createElement("div");
+        div.textContent = str || "";
+        return div.innerHTML;
+    }
 
-  const dist = sentiment.distribution;
-  const total = dist.Positive + dist.Negative + dist.Neutral;
-  document.getElementById("statPositive").textContent = dist.Positive;
-  document.getElementById("statNegative").textContent = dist.Negative;
-  document.getElementById("statNeutral").textContent  = dist.Neutral;
-  document.getElementById("statTotal").textContent     = total;
-
-  // Chart
-  if (sentimentChart) sentimentChart.destroy();
-  const ctx = document.getElementById("sentimentChart").getContext("2d");
-  sentimentChart = new Chart(ctx, {
-    type: "doughnut",
-    data: {
-      labels: ["Positive", "Negative", "Neutral"],
-      datasets: [{
-        data: [dist.Positive, dist.Negative, dist.Neutral],
-        backgroundColor: ["#2ecc71", "#e74c3c", "#95a5a6"],
-        borderWidth: 0,
-      }],
-    },
-    options: {
-      cutout: "60%",
-      plugins: {
-        legend: { display: true, position: "bottom", labels: { color: "#e2e2ef", padding: 16 } },
-      },
-      responsive: true,
-      maintainAspectRatio: true,
-    },
-  });
-
-  // Comments
-  renderCommentList("positiveComments", sentiment.most_positive);
-  renderCommentList("negativeComments", sentiment.most_negative);
-}
-
-function renderCommentList(containerId, comments) {
-  const container = document.getElementById(containerId);
-  container.innerHTML = "";
-  if (!comments || !comments.length) {
-    container.innerHTML = '<p class="empty-state">No comments</p>';
-    return;
-  }
-  comments.forEach((c) => {
-    const div = document.createElement("div");
-    div.className = "comment-card";
-    div.innerHTML = `
-      <span class="comment-owner">@${esc(c.owner || "user")}</span>
-      ${c.likes ? `<span class="comment-likes">${c.likes} likes</span>` : ""}
-      <span class="comment-sentiment ${c.sentiment}">[${c.sentiment}]</span>
-      <div class="comment-text">${esc(c.text)}</div>
-    `;
-    container.appendChild(div);
-  });
-}
-
-/* ── Key points ──────────────────────────────────────────────────────── */
-
-function renderKeyPoints(result) {
-  const hasCommentKP = result.key_points && result.key_points.key_phrases && result.key_points.key_phrases.length;
-  const hasTransKP   = result.transcription_key_points && result.transcription_key_points.key_phrases && result.transcription_key_points.key_phrases.length;
-
-  if (!hasCommentKP && !hasTransKP) {
-    showEl("noKeypoints");
-    hideEl("keypointsContent");
-    return;
-  }
-
-  showEl("keypointsContent");
-  hideEl("noKeypoints");
-
-  // Comment key points
-  if (hasCommentKP) {
-    showEl("commentKeyPoints");
-    fillList("commentSummaryPoints", result.key_points.summary_points);
-    fillPhrases("topPhrases", result.key_points.key_phrases);
-    fillThemes("commonThemes", result.key_points.common_themes);
-  } else {
-    hideEl("commentKeyPoints");
-  }
-
-  // Transcript key points
-  if (hasTransKP) {
-    showEl("transcriptKeyPoints");
-    fillList("transcriptSummaryPoints", result.transcription_key_points.summary_points);
-    fillPhrases("transcriptPhrases", result.transcription_key_points.key_phrases);
-  } else {
-    hideEl("transcriptKeyPoints");
-  }
-}
-
-function fillList(id, items) {
-  const ul = document.getElementById(id);
-  ul.innerHTML = "";
-  (items || []).forEach((text) => {
-    const li = document.createElement("li");
-    li.textContent = text;
-    ul.appendChild(li);
-  });
-}
-
-function fillPhrases(id, phrases) {
-  const container = document.getElementById(id);
-  container.innerHTML = "";
-  (phrases || []).forEach((p) => {
-    const span = document.createElement("span");
-    span.className = "phrase-chip";
-    span.innerHTML = `${esc(p.phrase)} <span class="phrase-score">${p.score}</span>`;
-    container.appendChild(span);
-  });
-}
-
-function fillThemes(id, themes) {
-  const container = document.getElementById(id);
-  container.innerHTML = "";
-  (themes || []).forEach((t) => {
-    const span = document.createElement("span");
-    span.className = "phrase-chip";
-    span.innerHTML = `${esc(t.word)} <span class="phrase-score">${t.count}x</span>`;
-    container.appendChild(span);
-  });
-}
-
-/* ── Tabs ─────────────────────────────────────────────────────────────── */
-
-function switchTab(tabName) {
-  document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
-  document.querySelectorAll(".tab-pane").forEach((p) => p.classList.remove("active"));
-  document.querySelector(`.tab[data-tab="${tabName}"]`).classList.add("active");
-  document.getElementById(`pane-${tabName}`).classList.add("active");
-}
-
-/* ── Helpers ──────────────────────────────────────────────────────────── */
-
-function showEl(id)  { document.getElementById(id).classList.remove("hidden"); }
-function hideEl(id)  { document.getElementById(id).classList.add("hidden"); }
-
-function resetBtn() {
-  const btn = document.getElementById("processBtn");
-  btn.disabled = false;
-  btn.querySelector(".btn-text").textContent = "Process";
-  btn.querySelector(".btn-loader").classList.add("hidden");
-}
-
-function showError(msg) {
-  document.getElementById("errorMsg").textContent = msg;
-  showEl("errorSection");
-  hideEl("progressSection");
-}
-
-function esc(str) {
-  const d = document.createElement("div");
-  d.textContent = str;
-  return d.innerHTML;
-}
+    // --- Initial load ---
+    loadIdeas();
+});

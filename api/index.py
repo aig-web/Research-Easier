@@ -1,7 +1,6 @@
-"""Vercel serverless entry point.
+import sys
+import os
 
-Exposes the Flask app as a WSGI handler that Vercel's @vercel/python
-runtime can invoke.
-"""
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from app import app
